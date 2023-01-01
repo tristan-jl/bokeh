@@ -91,12 +91,46 @@ fn horizontal_filter(
     let (w, h) = (w as usize, h as usize);
 
     let half_width = kernel.len() / 2;
-    for i in half_width..(w - half_width) {
-        for j in 0..h {
+    for j in 0..h {
+        for i in half_width..(w - half_width) {
             let mut out_pixel = [Complex::default(); 4];
             for (n, k) in kernel.iter().enumerate() {
                 let x = i as isize - half_width as isize + n as isize;
                 debug_assert!(x >= 0);
+                let x = x as usize;
+
+                for (o, p) in out_pixel.iter_mut().zip(input[(j * w) + x].iter()) {
+                    *o += p * k;
+                }
+            }
+
+            output[(j * w) + i] = out_pixel;
+        }
+
+        for i in 0..half_width {
+            let mut out_pixel = [Complex::default(); 4];
+            for (n, k) in kernel.iter().enumerate() {
+                let x = i as isize - half_width as isize + n as isize;
+                if x < 0 {
+                    continue;
+                }
+                let x = x as usize;
+
+                for (o, p) in out_pixel.iter_mut().zip(input[(j * w) + x].iter()) {
+                    *o += p * k;
+                }
+            }
+
+            output[(j * w) + i] = out_pixel;
+        }
+
+        for i in (w - half_width)..w {
+            let mut out_pixel = [Complex::default(); 4];
+            for (n, k) in kernel.iter().enumerate() {
+                let x = i as isize - half_width as isize + n as isize;
+                if x >= w as isize {
+                    continue;
+                }
                 let x = x as usize;
 
                 for (o, p) in out_pixel.iter_mut().zip(input[(j * w) + x].iter()) {
@@ -127,6 +161,40 @@ fn vertical_filter(
             for (n, k) in kernel.iter().enumerate() {
                 let y = j as isize - half_width as isize + n as isize;
                 debug_assert!(y >= 0);
+                let y = y as usize;
+
+                for (o, p) in out_pixel.iter_mut().zip(input[(y * w) + i].iter()) {
+                    *o += p * k;
+                }
+            }
+
+            output[(j * w) + i] = out_pixel;
+        }
+
+        for j in 0..half_width {
+            let mut out_pixel = [Complex::default(); 4];
+            for (n, k) in kernel.iter().enumerate() {
+                let y = j as isize - half_width as isize + n as isize;
+                if y < 0 {
+                    continue;
+                }
+                let y = y as usize;
+
+                for (o, p) in out_pixel.iter_mut().zip(input[(y * w) + i].iter()) {
+                    *o += p * k;
+                }
+            }
+
+            output[(j * w) + i] = out_pixel;
+        }
+
+        for j in (h - half_width)..h {
+            let mut out_pixel = [Complex::default(); 4];
+            for (n, k) in kernel.iter().enumerate() {
+                let y = j as isize - half_width as isize + n as isize;
+                if y >= h as isize {
+                    continue;
+                }
                 let y = y as usize;
 
                 for (o, p) in out_pixel.iter_mut().zip(input[(y * w) + i].iter()) {
