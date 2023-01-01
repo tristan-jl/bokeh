@@ -1,5 +1,6 @@
 use image::{DynamicImage, GenericImage, GenericImageView, Pixel};
 use num::Complex;
+use rayon::prelude::*;
 
 use crate::params::KernelParamSet;
 
@@ -200,28 +201,41 @@ pub fn bokeh_blur(
         .collect::<Vec<_>>();
 
     for (n, [r, g, b, a]) in kernels
-        .iter()
-        .map(|kernel| {
+        .par_iter()
+        .enumerate()
+        .map(|(n, kernel)| {
             let mut temp = vec![[Complex::new(0.0, 0.0); 4]; (w * h) as usize];
             let mut output = vec![[Complex::new(0.0, 0.0); 4]; (w * h) as usize];
             horizontal_filter(&input, &mut temp, kernel, w, h);
             vertical_filter(&temp, &mut output, kernel, w, h);
             output
+                .iter()
+                .map(|a| {
+                    [
+                        param_set.real_component(n) * a[0].re
+                            + param_set.imag_component(n) * a[0].im,
+                        param_set.real_component(n) * a[1].re
+                            + param_set.imag_component(n) * a[1].im,
+                        param_set.real_component(n) * a[2].re
+                            + param_set.imag_component(n) * a[2].im,
+                        param_set.real_component(n) * a[3].re
+                            + param_set.imag_component(n) * a[3].im,
+                    ]
+                })
+                .collect()
         })
-        .enumerate()
-        .fold(vec![[0.0; 4]; (w * h) as usize], |mut acc, (n, x)| {
-            for (a, y) in acc.iter_mut().zip(x.iter()) {
-                a[0] +=
-                    param_set.real_component(n) * y[0].re + param_set.imag_component(n) * y[0].im;
-                a[1] +=
-                    param_set.real_component(n) * y[1].re + param_set.imag_component(n) * y[1].im;
-                a[2] +=
-                    param_set.real_component(n) * y[2].re + param_set.imag_component(n) * y[2].im;
-                a[3] +=
-                    param_set.real_component(n) * y[3].re + param_set.imag_component(n) * y[3].im;
-            }
-            acc
-        })
+        .reduce(
+            || vec![[0.0; 4]; (w * h) as usize],
+            |mut a: Vec<[f64; 4]>, b: Vec<[f64; 4]>| {
+                for (x, y) in a.iter_mut().zip(b.iter()) {
+                    x[0] += y[0];
+                    x[1] += y[1];
+                    x[2] += y[2];
+                    x[3] += y[3];
+                }
+                a
+            },
+        )
         .into_iter()
         .enumerate()
     {
