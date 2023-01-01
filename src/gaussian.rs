@@ -43,6 +43,7 @@ fn horizontal_filter(
             let (mut r, mut g, mut b, mut a) = (0.0, 0.0, 0.0, 0.0);
             for (n, k) in kernel.iter().enumerate() {
                 let x = (i as i32 - half_width as i32 + n as i32) as u32;
+                // Safety: definitely in bounds due to iteration ranges
                 let pixel = unsafe { input.unsafe_get_pixel(x, j) };
 
                 r += pixel.0[0] as f32 * k;
@@ -53,6 +54,7 @@ fn horizontal_filter(
 
             debug_assert!((input.get_pixel(i, j).0[3] as f32 - a) < 0.0001);
 
+            // Safety: definitely in bounds due to iteration ranges
             unsafe {
                 output.unsafe_put_pixel(
                     i,
@@ -73,6 +75,7 @@ fn horizontal_filter(
                 }
 
                 let x = x as u32;
+                // Safety: definitely in bounds due to iteration ranges
                 let pixel = unsafe { input.unsafe_get_pixel(x, j) };
 
                 r += pixel.0[0] as f32 * k;
@@ -83,6 +86,7 @@ fn horizontal_filter(
 
             debug_assert!((input.get_pixel(i, j).0[3] as f32 - a) < 0.0001);
 
+            // Safety: definitely in bounds due to iteration ranges
             unsafe {
                 output.unsafe_put_pixel(
                     i,
@@ -103,6 +107,7 @@ fn horizontal_filter(
                 }
 
                 let x = x as u32;
+                // Safety: definitely in bounds due to iteration ranges
                 let pixel = unsafe { input.unsafe_get_pixel(x, j) };
 
                 r += pixel.0[0] as f32 * k;
@@ -113,6 +118,7 @@ fn horizontal_filter(
 
             debug_assert!((input.get_pixel(i, j).0[3] as f32 - a) < 0.0001);
 
+            // Safety: definitely in bounds due to iteration ranges
             unsafe {
                 output.unsafe_put_pixel(
                     i,
@@ -140,6 +146,7 @@ fn vertical_filter(
             let (mut r, mut g, mut b, mut a) = (0.0, 0.0, 0.0, 0.0);
             for (n, k) in kernel.iter().enumerate() {
                 let y = (j as i32 - half_width as i32 + n as i32) as u32;
+                // Safety: definitely in bounds due to iteration ranges
                 let pixel = unsafe { input.unsafe_get_pixel(i, y) };
 
                 r += pixel.0[0] as f32 * k;
@@ -150,6 +157,7 @@ fn vertical_filter(
 
             debug_assert!((input.get_pixel(i, j).0[3] as f32 - a) < 0.00001);
 
+            // Safety: definitely in bounds due to iteration ranges
             unsafe {
                 output.unsafe_put_pixel(
                     i,
@@ -170,6 +178,7 @@ fn vertical_filter(
                 }
 
                 let y = y as u32;
+                // Safety: definitely in bounds due to iteration ranges
                 let pixel = unsafe { input.unsafe_get_pixel(i, y) };
 
                 r += pixel.0[0] as f32 * k;
@@ -180,6 +189,7 @@ fn vertical_filter(
 
             debug_assert!((input.get_pixel(i, j).0[3] as f32 - a) < 0.00001);
 
+            // Safety: definitely in bounds due to iteration ranges
             unsafe {
                 output.unsafe_put_pixel(
                     i,
@@ -200,6 +210,7 @@ fn vertical_filter(
                 }
 
                 let y = y as u32;
+                // Safety: definitely in bounds due to iteration ranges
                 let pixel = unsafe { input.unsafe_get_pixel(i, y) };
 
                 r += pixel.0[0] as f32 * k;
@@ -210,6 +221,7 @@ fn vertical_filter(
 
             debug_assert!((input.get_pixel(i, j).0[3] as f32 - a) < 0.00001);
 
+            // Safety: definitely in bounds due to iteration ranges
             unsafe {
                 output.unsafe_put_pixel(
                     i,
@@ -221,6 +233,7 @@ fn vertical_filter(
     }
 }
 
+/// Blurs an image using a Gaussian kernel
 pub fn gaussian_blur(img: &mut DynamicImage, r: f32, kernel_radius: usize) {
     let (w, h) = img.dimensions();
     let kernel = gaussian_kernel(r, kernel_radius);

@@ -19,7 +19,8 @@ fn complex_gaussian_kernel(r: f64, kernel_radius: usize, a: f64, b: f64) -> Vec<
     kernel
 }
 
-/// Build all the gaussian kernels and normalise w.r.t. params
+/// Build all the gaussian kernels and normalise w.r.t. params, ie so that after all the kernels
+/// are applied the pixel remains the same brightness
 fn complex_gaussian_kernels(
     params: &KernelParamSet,
     r: f64,
@@ -33,8 +34,8 @@ fn complex_gaussian_kernels(
     for (n, k) in kernels.iter().enumerate() {
         for i in k {
             for j in k {
-                sum += params.A(n) * (i.re * j.re - i.im * j.im)
-                    + params.B(n) * (i.re * j.im + i.im * j.re)
+                sum += params.real_component(n) * (i.re * j.re - i.im * j.im)
+                    + params.imag_component(n) * (i.re * j.im + i.im * j.re)
             }
         }
     }
@@ -53,8 +54,8 @@ fn complex_gaussian_kernels(
             for (n, k) in kernels.iter().enumerate() {
                 for i in k {
                     for j in k {
-                        s += params.A(n) * (i.re * j.re - i.im * j.im)
-                            + params.B(n) * (i.re * j.im + i.im * j.re)
+                        s += params.real_component(n) * (i.re * j.re - i.im * j.im)
+                            + params.imag_component(n) * (i.re * j.im + i.im * j.re)
                     }
                 }
             }
@@ -67,8 +68,8 @@ fn complex_gaussian_kernels(
             for (n, k) in kernels.iter().enumerate() {
                 for i in k {
                     for j in k {
-                        s += params.A(n) * (i.re * j.re - i.im * j.im)
-                            + params.B(n) * (i.re * j.im + i.im * j.re)
+                        s += params.real_component(n) * (i.re * j.re - i.im * j.im)
+                            + params.imag_component(n) * (i.re * j.im + i.im * j.re)
                     }
                 }
             }
@@ -173,6 +174,7 @@ fn vertical_filter(
     }
 }
 
+/// Blurs an image using an approximation of a disc-shaped kernel to produce a Bokeh lens effect
 pub fn bokeh_blur(
     img: &mut DynamicImage,
     r: f64,
@@ -209,10 +211,14 @@ pub fn bokeh_blur(
         .enumerate()
         .fold(vec![[0.0; 4]; (w * h) as usize], |mut acc, (n, x)| {
             for (a, y) in acc.iter_mut().zip(x.iter()) {
-                a[0] += param_set.A(n) * y[0].re + param_set.B(n) * y[0].im;
-                a[1] += param_set.A(n) * y[1].re + param_set.B(n) * y[1].im;
-                a[2] += param_set.A(n) * y[2].re + param_set.B(n) * y[2].im;
-                a[3] += param_set.A(n) * y[3].re + param_set.B(n) * y[3].im;
+                a[0] +=
+                    param_set.real_component(n) * y[0].re + param_set.imag_component(n) * y[0].im;
+                a[1] +=
+                    param_set.real_component(n) * y[1].re + param_set.imag_component(n) * y[1].im;
+                a[2] +=
+                    param_set.real_component(n) * y[2].re + param_set.imag_component(n) * y[2].im;
+                a[3] +=
+                    param_set.real_component(n) * y[3].re + param_set.imag_component(n) * y[3].im;
             }
             acc
         })
@@ -225,6 +231,7 @@ pub fn bokeh_blur(
         let b = b.powf(1.0 / gamma).clamp(0.0, 255.0) as u8;
         let a = a.powf(1.0 / gamma).clamp(0.0, 255.0) as u8;
 
+        // Safety: definitely in bounds due to iteration ranges
         unsafe {
             img.unsafe_put_pixel(
                 n as u32 % w,
