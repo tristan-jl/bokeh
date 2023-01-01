@@ -107,28 +107,11 @@ fn horizontal_filter(
             output[(j * w) + i] = out_pixel;
         }
 
-        for i in 0..half_width {
+        for i in (0..half_width).chain((w - half_width)..w) {
             let mut out_pixel = [Complex::default(); 4];
             for (n, k) in kernel.iter().enumerate() {
                 let x = i as isize - half_width as isize + n as isize;
-                if x < 0 {
-                    continue;
-                }
-                let x = x as usize;
-
-                for (o, p) in out_pixel.iter_mut().zip(input[(j * w) + x].iter()) {
-                    *o += p * k;
-                }
-            }
-
-            output[(j * w) + i] = out_pixel;
-        }
-
-        for i in (w - half_width)..w {
-            let mut out_pixel = [Complex::default(); 4];
-            for (n, k) in kernel.iter().enumerate() {
-                let x = i as isize - half_width as isize + n as isize;
-                if x >= w as isize {
+                if x < 0 || x >= w as isize {
                     continue;
                 }
                 let x = x as usize;
@@ -171,28 +154,11 @@ fn vertical_filter(
             output[(j * w) + i] = out_pixel;
         }
 
-        for j in 0..half_width {
+        for j in (0..half_width).chain((h - half_width)..h) {
             let mut out_pixel = [Complex::default(); 4];
             for (n, k) in kernel.iter().enumerate() {
                 let y = j as isize - half_width as isize + n as isize;
-                if y < 0 {
-                    continue;
-                }
-                let y = y as usize;
-
-                for (o, p) in out_pixel.iter_mut().zip(input[(y * w) + i].iter()) {
-                    *o += p * k;
-                }
-            }
-
-            output[(j * w) + i] = out_pixel;
-        }
-
-        for j in (h - half_width)..h {
-            let mut out_pixel = [Complex::default(); 4];
-            for (n, k) in kernel.iter().enumerate() {
-                let y = j as isize - half_width as isize + n as isize;
-                if y >= h as isize {
+                if y < 0 || y >= h as isize {
                     continue;
                 }
                 let y = y as usize;
@@ -211,6 +177,7 @@ pub fn bokeh_blur(
     img: &mut DynamicImage,
     r: f64,
     kernel_radius: usize,
+    gamma: f64,
     param_set: &KernelParamSet,
 ) {
     let (w, h) = img.dimensions();
@@ -222,10 +189,10 @@ pub fn bokeh_blur(
             let c = pixel.channels();
             debug_assert_eq!(c.len(), 4);
             [
-                Complex::new(c[0] as f64, 0.0),
-                Complex::new(c[1] as f64, 0.0),
-                Complex::new(c[2] as f64, 0.0),
-                Complex::new(c[3] as f64, 0.0),
+                Complex::new((c[0] as f64).powf(gamma), 0.0),
+                Complex::new((c[1] as f64).powf(gamma), 0.0),
+                Complex::new((c[2] as f64).powf(gamma), 0.0),
+                Complex::new((c[3] as f64).powf(gamma), 0.0),
             ]
         })
         .collect::<Vec<_>>();
@@ -253,10 +220,10 @@ pub fn bokeh_blur(
         .enumerate()
     {
         // Clamp any values from floating point ops - ensure the cast to u8 is ok
-        let r = r.clamp(0.0, 255.0) as u8;
-        let g = g.clamp(0.0, 255.0) as u8;
-        let b = b.clamp(0.0, 255.0) as u8;
-        let a = a.clamp(0.0, 255.0) as u8;
+        let r = r.powf(1.0 / gamma).clamp(0.0, 255.0) as u8;
+        let g = g.powf(1.0 / gamma).clamp(0.0, 255.0) as u8;
+        let b = b.powf(1.0 / gamma).clamp(0.0, 255.0) as u8;
+        let a = a.powf(1.0 / gamma).clamp(0.0, 255.0) as u8;
 
         unsafe {
             img.unsafe_put_pixel(

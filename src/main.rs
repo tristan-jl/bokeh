@@ -10,6 +10,6 @@ fn main() {
     let output_path = args.next().unwrap_or_else(|| "output.png".to_owned());
 
     let mut img = ImageReader::open(input_path).unwrap().decode().unwrap();
-    img.bokeh_blur(2.0, 50, &KERNEL5_PARAM_SET);
+    img.bokeh_blur(5.0, 150, 3.0, &KERNEL9_PARAM_SET);
     img.save(output_path).unwrap();
 }

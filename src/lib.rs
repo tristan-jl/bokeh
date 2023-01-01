@@ -12,7 +12,7 @@ use self::params::KernelParamSet;
 
 pub trait Blur {
     fn gaussian_blur(&mut self, r: f32, kernel_radius: usize);
-    fn bokeh_blur(&mut self, r: f64, kernel_radius: usize, param_set: &KernelParamSet);
+    fn bokeh_blur(&mut self, r: f64, kernel_radius: usize, gamma: f64, param_set: &KernelParamSet);
 }
 
 impl Blur for DynamicImage {
@@ -20,7 +20,7 @@ impl Blur for DynamicImage {
         gaussian_blur(self, r, kernel_radius)
     }
 
-    fn bokeh_blur(&mut self, r: f64, kernel_radius: usize, param_set: &KernelParamSet) {
-        bokeh_blur(self, r, kernel_radius, param_set)
+    fn bokeh_blur(&mut self, r: f64, kernel_radius: usize, gamma: f64, param_set: &KernelParamSet) {
+        bokeh_blur(self, r, kernel_radius, gamma, param_set)
     }
 }
