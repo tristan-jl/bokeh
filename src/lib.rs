@@ -1,20 +1,20 @@
+mod complex;
+pub mod params;
+
 use std::f32;
 
 use image::{DynamicImage, GenericImage, GenericImageView, Pixel};
+
+use self::complex::bokeh_blur;
+use self::params::KernelParamSet;
 
 fn gaussian(x: f32, r: f32) -> f32 {
     ((2.0 * f32::consts::PI).sqrt() * r).recip() * (-x.powi(2) / (2.0 * r.powi(2))).exp()
 }
 
-/*
-fn complex_gaussian(a:f32,b:32,c:f32,d:f32) -> f32 {
-    C
-}
-*/
-
 pub fn gaussian_kernel(r: f32, kernel_radius: usize) -> Vec<f32> {
     let mut kernel = vec![0f32; 1 + 2 * kernel_radius];
-    let mut sum = 0f32;
+    let mut sum = 0.0;
     for i in -(kernel_radius as isize)..=(kernel_radius as isize) {
         let val = gaussian(i as f32, r);
         kernel[(i + kernel_radius as isize) as usize] = val;
@@ -33,6 +33,8 @@ pub fn gaussian_kernel(r: f32, kernel_radius: usize) -> Vec<f32> {
     kernel
 }
 
+/// Does the horizontal component of the gaussian filter
+/// Splits the for loop for optimisations
 #[inline(always)]
 fn horizontal_filter(
     input: &mut DynamicImage,
@@ -55,7 +57,67 @@ fn horizontal_filter(
                 a += pixel.0[3] as f32 * k;
             }
 
-            debug_assert!((input.get_pixel(i, j).0[3] as f32 - a) < 0.00001);
+            debug_assert!((input.get_pixel(i, j).0[3] as f32 - a) < 0.0001);
+
+            unsafe {
+                output.unsafe_put_pixel(
+                    i,
+                    j,
+                    *Pixel::from_slice(&[r as u8, g as u8, b as u8, a as u8]),
+                )
+            };
+        }
+    }
+
+    for i in 0..(half_width as u32) {
+        for j in 0..h {
+            let (mut r, mut g, mut b, mut a) = (0.0, 0.0, 0.0, 0.0);
+            for (n, k) in kernel.iter().enumerate() {
+                let x = i as i32 - half_width as i32 + n as i32;
+                if x < 0 {
+                    continue;
+                }
+
+                let x = x as u32;
+                let pixel = unsafe { input.unsafe_get_pixel(x, j) };
+
+                r += pixel.0[0] as f32 * k;
+                g += pixel.0[1] as f32 * k;
+                b += pixel.0[2] as f32 * k;
+                a += pixel.0[3] as f32 * k;
+            }
+
+            debug_assert!((input.get_pixel(i, j).0[3] as f32 - a) < 0.0001);
+
+            unsafe {
+                output.unsafe_put_pixel(
+                    i,
+                    j,
+                    *Pixel::from_slice(&[r as u8, g as u8, b as u8, a as u8]),
+                )
+            };
+        }
+    }
+
+    for i in (w - half_width as u32)..w {
+        for j in 0..h {
+            let (mut r, mut g, mut b, mut a) = (0.0, 0.0, 0.0, 0.0);
+            for (n, k) in kernel.iter().enumerate() {
+                let x = i as i32 - half_width as i32 + n as i32;
+                if x >= w as i32 {
+                    continue;
+                }
+
+                let x = x as u32;
+                let pixel = unsafe { input.unsafe_get_pixel(x, j) };
+
+                r += pixel.0[0] as f32 * k;
+                g += pixel.0[1] as f32 * k;
+                b += pixel.0[2] as f32 * k;
+                a += pixel.0[3] as f32 * k;
+            }
+
+            debug_assert!((input.get_pixel(i, j).0[3] as f32 - a) < 0.0001);
 
             unsafe {
                 output.unsafe_put_pixel(
@@ -68,6 +130,8 @@ fn horizontal_filter(
     }
 }
 
+/// Does the horizontal component of the gaussian filter
+/// Splits the for loop for optimisations
 #[inline(always)]
 fn vertical_filter(
     input: &mut DynamicImage,
@@ -101,6 +165,66 @@ fn vertical_filter(
             };
         }
     }
+
+    for i in 0..w {
+        for j in 0..(half_width as u32) {
+            let (mut r, mut g, mut b, mut a) = (0.0, 0.0, 0.0, 0.0);
+            for (n, k) in kernel.iter().enumerate() {
+                let y = j as i32 - half_width as i32 + n as i32;
+                if y < 0 {
+                    continue;
+                }
+
+                let y = y as u32;
+                let pixel = unsafe { input.unsafe_get_pixel(i, y) };
+
+                r += pixel.0[0] as f32 * k;
+                g += pixel.0[1] as f32 * k;
+                b += pixel.0[2] as f32 * k;
+                a += pixel.0[3] as f32 * k;
+            }
+
+            debug_assert!((input.get_pixel(i, j).0[3] as f32 - a) < 0.00001);
+
+            unsafe {
+                output.unsafe_put_pixel(
+                    i,
+                    j,
+                    *Pixel::from_slice(&[r as u8, g as u8, b as u8, a as u8]),
+                )
+            };
+        }
+    }
+
+    for i in 0..w {
+        for j in (h - half_width as u32)..h {
+            let (mut r, mut g, mut b, mut a) = (0.0, 0.0, 0.0, 0.0);
+            for (n, k) in kernel.iter().enumerate() {
+                let y = j as i32 - half_width as i32 + n as i32;
+                if y >= h as i32 {
+                    continue;
+                }
+
+                let y = y as u32;
+                let pixel = unsafe { input.unsafe_get_pixel(i, y) };
+
+                r += pixel.0[0] as f32 * k;
+                g += pixel.0[1] as f32 * k;
+                b += pixel.0[2] as f32 * k;
+                a += pixel.0[3] as f32 * k;
+            }
+
+            debug_assert!((input.get_pixel(i, j).0[3] as f32 - a) < 0.00001);
+
+            unsafe {
+                output.unsafe_put_pixel(
+                    i,
+                    j,
+                    *Pixel::from_slice(&[r as u8, g as u8, b as u8, a as u8]),
+                )
+            };
+        }
+    }
 }
 
 pub fn gaussian_blur(img: &mut DynamicImage, r: f32, kernel_radius: usize) {
@@ -112,13 +236,18 @@ pub fn gaussian_blur(img: &mut DynamicImage, r: f32, kernel_radius: usize) {
     vertical_filter(&mut intermediate, img, &kernel, w, h);
 }
 
-pub trait GaussianBlur {
+pub trait Blur {
     fn gaussian_blur(&mut self, r: f32, kernel_radius: usize);
+    fn bokeh_blur(&mut self, r: f64, kernel_radius: usize, param_set: &KernelParamSet);
 }
 
-impl GaussianBlur for DynamicImage {
+impl Blur for DynamicImage {
     fn gaussian_blur(&mut self, r: f32, kernel_radius: usize) {
         gaussian_blur(self, r, kernel_radius)
+    }
+
+    fn bokeh_blur(&mut self, r: f64, kernel_radius: usize, param_set: &KernelParamSet) {
+        bokeh_blur(self, r, kernel_radius, param_set)
     }
 }
 
@@ -129,7 +258,7 @@ mod tests {
     #[test]
     fn test_kernel() {
         assert_eq!(
-            gaussian_kernel(1.0, 9),
+            gaussian_kernel(1.0, 4),
             vec![
                 0.00013383062,
                 0.0044318615,
