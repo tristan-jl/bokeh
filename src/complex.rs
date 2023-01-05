@@ -3,13 +3,15 @@ use num::Complex;
 
 use crate::params::KernelParamSet;
 
+type ComplexPixel = [Complex<f64>; 4];
+
 /// _UNNORMALISED_ complex gaussian kernel
 fn complex_gaussian_kernel(r: f64, kernel_radius: usize, a: f64, b: f64) -> Vec<Complex<f64>> {
     let kernel_size = 1 + kernel_radius * 2;
     let mut kernel: Vec<Complex<f64>> = vec![Complex::new(0.0, 0.0); kernel_size];
 
     for i in -(kernel_radius as isize)..=(kernel_radius as isize) {
-        let ax = i as f64 * r * (1.0 / kernel_radius as f64);
+        let ax = i as f64 * r / kernel_radius as f64;
         let ax2 = ax * ax;
         let exp_a = (-a * ax2).exp();
         let val = Complex::new(exp_a * (b * ax2).cos(), exp_a * (b * ax2).sin());
@@ -20,7 +22,7 @@ fn complex_gaussian_kernel(r: f64, kernel_radius: usize, a: f64, b: f64) -> Vec<
 }
 
 /// Build all the gaussian kernels and normalise w.r.t. params, ie so that after all the kernels
-/// are applied the pixel remains the same brightness
+/// are applied the pixel remains the same brightnes
 fn complex_gaussian_kernels(
     params: &KernelParamSet,
     r: f64,
@@ -30,16 +32,22 @@ fn complex_gaussian_kernels(
         .map(|i| complex_gaussian_kernel(r, kernel_radius, params.a(i), params.b(i)))
         .collect::<Vec<_>>();
 
-    let mut sum = 0.0;
-    for (n, k) in kernels.iter().enumerate() {
-        for i in k {
-            for j in k {
-                sum += params.real_component(n) * (i.re * j.re - i.im * j.im)
-                    + params.imag_component(n) * (i.re * j.im + i.im * j.re)
+    let sum = kernels
+        .iter()
+        .enumerate()
+        .fold(0.0, |acc, (n, k)| {
+            acc + {
+                let mut s = 0.0;
+                for i in k {
+                    for j in k {
+                        s += params.real_component(n) * (i.re * j.re - i.im * j.im)
+                            + params.imag_component(n) * (i.re * j.im + i.im * j.re)
+                    }
+                }
+                s
             }
-        }
-    }
-    sum = sum.sqrt();
+        })
+        .sqrt();
 
     for kernel in kernels.iter_mut() {
         for elem in kernel.iter_mut() {
@@ -81,15 +89,14 @@ fn complex_gaussian_kernels(
 }
 
 fn horizontal_filter(
-    input: &[[Complex<f64>; 4]],
-    output: &mut [[Complex<f64>; 4]],
+    input: &[ComplexPixel],
     kernel: &[Complex<f64>],
     w: u32,
     h: u32,
-) {
+) -> Vec<ComplexPixel> {
     debug_assert!(input.len() == (w * h) as usize);
-    debug_assert!(input.len() == output.len());
     let (w, h) = (w as usize, h as usize);
+    let mut output = vec![[Complex::new(0.0, 0.0); 4]; w * h];
 
     let half_width = kernel.len() / 2;
     for j in 0..h {
@@ -100,8 +107,10 @@ fn horizontal_filter(
                 debug_assert!(x >= 0);
                 let x = x as usize;
 
-                for (o, p) in out_pixel.iter_mut().zip(input[(j * w) + x].iter()) {
-                    *o += p * k;
+                for (out_subpixel, in_subpixel) in
+                    out_pixel.iter_mut().zip(input[(j * w) + x].iter())
+                {
+                    *out_subpixel += in_subpixel * k;
                 }
             }
 
@@ -117,26 +126,29 @@ fn horizontal_filter(
                 }
                 let x = x as usize;
 
-                for (o, p) in out_pixel.iter_mut().zip(input[(j * w) + x].iter()) {
-                    *o += p * k;
+                for (out_subpixel, in_subpixel) in
+                    out_pixel.iter_mut().zip(input[(j * w) + x].iter())
+                {
+                    *out_subpixel += in_subpixel * k;
                 }
             }
 
             output[(j * w) + i] = out_pixel;
         }
     }
+
+    output
 }
 
 fn vertical_filter(
-    input: &[[Complex<f64>; 4]],
-    output: &mut [[Complex<f64>; 4]],
+    input: &[ComplexPixel],
     kernel: &[Complex<f64>],
     w: u32,
     h: u32,
-) {
+) -> Vec<ComplexPixel> {
     debug_assert!(input.len() == (w * h) as usize);
-    debug_assert!(input.len() == output.len());
     let (w, h) = (w as usize, h as usize);
+    let mut output = vec![[Complex::new(0.0, 0.0); 4]; w * h];
 
     let half_width = kernel.len() / 2;
     for i in 0..w {
@@ -172,6 +184,8 @@ fn vertical_filter(
             output[(j * w) + i] = out_pixel;
         }
     }
+
+    output
 }
 
 /// Blurs an image using an approximation of a disc-shaped kernel to produce a Bokeh lens effect
@@ -202,23 +216,18 @@ pub fn bokeh_blur(
     for (n, [r, g, b, a]) in kernels
         .iter()
         .map(|kernel| {
-            let mut temp = vec![[Complex::new(0.0, 0.0); 4]; (w * h) as usize];
-            let mut output = vec![[Complex::new(0.0, 0.0); 4]; (w * h) as usize];
-            horizontal_filter(&input, &mut temp, kernel, w, h);
-            vertical_filter(&temp, &mut output, kernel, w, h);
-            output
+            let temp = horizontal_filter(&input, kernel, w, h);
+            vertical_filter(&temp, kernel, w, h)
         })
         .enumerate()
         .fold(vec![[0.0; 4]; (w * h) as usize], |mut acc, (n, x)| {
             for (a, y) in acc.iter_mut().zip(x.iter()) {
-                a[0] +=
-                    param_set.real_component(n) * y[0].re + param_set.imag_component(n) * y[0].im;
-                a[1] +=
-                    param_set.real_component(n) * y[1].re + param_set.imag_component(n) * y[1].im;
-                a[2] +=
-                    param_set.real_component(n) * y[2].re + param_set.imag_component(n) * y[2].im;
-                a[3] +=
-                    param_set.real_component(n) * y[3].re + param_set.imag_component(n) * y[3].im;
+                let re = param_set.real_component(n);
+                let im = param_set.imag_component(n);
+                a[0] += re * y[0].re + im * y[0].im;
+                a[1] += re * y[1].re + im * y[1].im;
+                a[2] += re * y[2].re + im * y[2].im;
+                a[3] += re * y[3].re + im * y[3].im;
             }
             acc
         })
