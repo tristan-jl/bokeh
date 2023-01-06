@@ -33,6 +33,7 @@ dependencies = [
  "image",
  "num",
  "paste",
+ "rayon",
 ]
 
 [[package]]

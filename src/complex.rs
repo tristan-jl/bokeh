@@ -1,5 +1,6 @@
 use image::{DynamicImage, GenericImage, GenericImageView, Pixel};
 use num::Complex;
+use rayon::prelude::*;
 
 use crate::params::KernelParamSet;
 
@@ -214,23 +215,36 @@ pub fn bokeh_blur(
         .collect::<Vec<_>>();
 
     for (n, [r, g, b, a]) in kernels
-        .iter()
-        .map(|kernel| {
+        .par_iter()
+        .enumerate()
+        .map(|(n, kernel)| {
             let temp = horizontal_filter(&input, kernel, w, h);
             vertical_filter(&temp, kernel, w, h)
+                .iter()
+                .map(|pixel| {
+                    let re = param_set.real_component(n);
+                    let im = param_set.imag_component(n);
+                    [
+                        re * pixel[0].re + im * pixel[0].im,
+                        re * pixel[1].re + im * pixel[1].im,
+                        re * pixel[2].re + im * pixel[2].im,
+                        re * pixel[3].re + im * pixel[3].im,
+                    ]
+                })
+                .collect()
         })
-        .enumerate()
-        .fold(vec![[0.0; 4]; (w * h) as usize], |mut acc, (n, x)| {
-            for (a, y) in acc.iter_mut().zip(x.iter()) {
-                let re = param_set.real_component(n);
-                let im = param_set.imag_component(n);
-                a[0] += re * y[0].re + im * y[0].im;
-                a[1] += re * y[1].re + im * y[1].im;
-                a[2] += re * y[2].re + im * y[2].im;
-                a[3] += re * y[3].re + im * y[3].im;
-            }
-            acc
-        })
+        .reduce(
+            || vec![[0.0; 4]; (w * h) as usize],
+            |mut a, b| {
+                for (x, y) in a.iter_mut().zip(b.iter()) {
+                    x[0] += y[0];
+                    x[1] += y[1];
+                    x[2] += y[2];
+                    x[3] += y[3];
+                }
+                a
+            },
+        )
         .into_iter()
         .enumerate()
     {
