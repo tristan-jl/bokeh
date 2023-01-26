@@ -1,7 +1,9 @@
 use crate::params::KernelParamSet;
-use image::{DynamicImage, GenericImageView, Pixel};
 use num::Complex;
 use rayon::prelude::*;
+
+#[cfg(feature = "image")]
+use image::{DynamicImage, GenericImageView, Pixel};
 
 type ComplexPixel = [Complex<f64>; 4];
 
@@ -98,6 +100,8 @@ fn horizontal_filter(
     let mut output = vec![[Complex::new(0.0, 0.0); 4]; w * h];
 
     let half_width = kernel.len() / 2;
+    debug_assert!(w >= half_width);
+    debug_assert!(h >= half_width);
     for j in 0..h {
         for i in half_width..(w - half_width) {
             let mut out_pixel = [Complex::default(); 4];
@@ -193,6 +197,7 @@ pub struct ComplexImage {
 }
 
 impl ComplexImage {
+    #[cfg(feature = "image")]
     pub fn from_dynamic_image(img: &DynamicImage, gamma: f64) -> Self {
         let input = img
             .pixels()
@@ -295,6 +300,7 @@ pub fn bokeh_blur(
 
 // TODO optimisation where only convolve regions not masked, have to look at places within kernel
 // radius
+#[allow(clippy::too_many_arguments)]
 pub fn bokeh_blur_with_mask<'a>(
     img: &mut [[f64; 4]],
     mask: impl IntoIterator<Item = &'a bool>,
@@ -318,6 +324,7 @@ pub fn bokeh_blur_with_mask<'a>(
     }
 }
 
+#[cfg(feature = "image")]
 pub mod dynamic_image {
     use super::ComplexImage;
     use crate::params::KernelParamSet;
