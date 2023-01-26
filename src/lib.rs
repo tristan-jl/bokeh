@@ -5,7 +5,6 @@
 //! Draws heavily on the work done [here](https://github.com/mikepound/convolve) by Mike Pound.
 
 mod complex;
-mod gaussian;
 pub mod params;
 
 use self::params::KernelParamSet;
@@ -14,7 +13,6 @@ use image::DynamicImage;
 pub use self::complex::bokeh_blur;
 pub use self::complex::bokeh_blur_with_mask;
 pub use self::complex::dynamic_image;
-pub use self::gaussian::gaussian_blur;
 
 /// A trait that allows the blurring of images
 pub trait Blur {
