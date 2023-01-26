@@ -1,7 +1,6 @@
-use std::env;
-
 use bokeh::{params::*, Blur};
 use image::io::Reader as ImageReader;
+use std::env;
 
 fn main() {
     let mut args = env::args();

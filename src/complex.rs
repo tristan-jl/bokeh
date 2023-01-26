@@ -1,8 +1,7 @@
-use image::{DynamicImage, GenericImage, GenericImageView, Pixel};
+use crate::params::KernelParamSet;
+use image::{DynamicImage, GenericImageView, Pixel};
 use num::Complex;
 use rayon::prelude::*;
-
-use crate::params::KernelParamSet;
 
 type ComplexPixel = [Complex<f64>; 4];
 
@@ -92,11 +91,10 @@ fn complex_gaussian_kernels(
 fn horizontal_filter(
     input: &[ComplexPixel],
     kernel: &[Complex<f64>],
-    w: u32,
-    h: u32,
+    w: usize,
+    h: usize,
 ) -> Vec<ComplexPixel> {
     debug_assert!(input.len() == (w * h) as usize);
-    let (w, h) = (w as usize, h as usize);
     let mut output = vec![[Complex::new(0.0, 0.0); 4]; w * h];
 
     let half_width = kernel.len() / 2;
@@ -144,11 +142,10 @@ fn horizontal_filter(
 fn vertical_filter(
     input: &[ComplexPixel],
     kernel: &[Complex<f64>],
-    w: u32,
-    h: u32,
+    w: usize,
+    h: usize,
 ) -> Vec<ComplexPixel> {
     debug_assert!(input.len() == (w * h) as usize);
-    let (w, h) = (w as usize, h as usize);
     let mut output = vec![[Complex::new(0.0, 0.0); 4]; w * h];
 
     let half_width = kernel.len() / 2;
@@ -189,78 +186,201 @@ fn vertical_filter(
     output
 }
 
+pub struct ComplexImage {
+    pixels: Vec<ComplexPixel>,
+    w: usize,
+    h: usize,
+}
+
+impl ComplexImage {
+    pub fn from_dynamic_image(img: &DynamicImage, gamma: f64) -> Self {
+        let input = img
+            .pixels()
+            .map(|(_, _, pixel)| {
+                let c = pixel.channels();
+                debug_assert_eq!(c.len(), 4);
+                [
+                    Complex::new((c[0] as f64).powf(gamma), 0.0),
+                    Complex::new((c[1] as f64).powf(gamma), 0.0),
+                    Complex::new((c[2] as f64).powf(gamma), 0.0),
+                    Complex::new((c[3] as f64).powf(gamma), 0.0),
+                ]
+            })
+            .collect::<Vec<_>>();
+
+        let (w, h) = img.dimensions();
+
+        Self {
+            pixels: input,
+            w: w as usize,
+            h: h as usize,
+        }
+    }
+
+    /// From an image stored as a vector with 4 channels
+    pub fn from_slice(img: &[[f64; 4]], w: usize, h: usize, gamma: f64) -> Self {
+        let input = img
+            .iter()
+            .map(|c| {
+                [
+                    Complex::new((c[0] as f64).powf(gamma), 0.0),
+                    Complex::new((c[1] as f64).powf(gamma), 0.0),
+                    Complex::new((c[2] as f64).powf(gamma), 0.0),
+                    Complex::new((c[3] as f64).powf(gamma), 0.0),
+                ]
+            })
+            .collect::<Vec<_>>();
+
+        Self {
+            pixels: input,
+            w: w as usize,
+            h: h as usize,
+        }
+    }
+
+    fn bokeh_blur(self, param_set: &KernelParamSet, r: f64, kernel_radius: usize) -> Vec<[f64; 4]> {
+        complex_gaussian_kernels(param_set, r, kernel_radius)
+            .par_iter()
+            .enumerate()
+            .map(|(n, kernel)| {
+                let temp = horizontal_filter(&self.pixels, kernel, self.w, self.h);
+                vertical_filter(&temp, kernel, self.w, self.h)
+                    .iter()
+                    .map(|pixel| {
+                        let re = param_set.real_component(n);
+                        let im = param_set.imag_component(n);
+                        [
+                            re * pixel[0].re + im * pixel[0].im,
+                            re * pixel[1].re + im * pixel[1].im,
+                            re * pixel[2].re + im * pixel[2].im,
+                            re * pixel[3].re + im * pixel[3].im,
+                        ]
+                    })
+                    .collect()
+            })
+            .reduce(
+                || vec![[0.0; 4]; self.w * self.h],
+                |mut a, b| {
+                    for (x, y) in a.iter_mut().zip(b.iter()) {
+                        x[0] += y[0];
+                        x[1] += y[1];
+                        x[2] += y[2];
+                        x[3] += y[3];
+                    }
+                    a
+                },
+            )
+    }
+}
+
 /// Blurs an image using an approximation of a disc-shaped kernel to produce a Bokeh lens effect
 pub fn bokeh_blur(
-    img: &mut DynamicImage,
+    img: &mut [[f64; 4]],
+    w: usize,
+    h: usize,
     r: f64,
     kernel_radius: usize,
     gamma: f64,
     param_set: &KernelParamSet,
 ) {
-    let (w, h) = img.dimensions();
-    let kernels = complex_gaussian_kernels(param_set, r, kernel_radius);
-
-    let input = img
-        .pixels()
-        .map(|(_, _, pixel)| {
-            let c = pixel.channels();
-            debug_assert_eq!(c.len(), 4);
-            [
-                Complex::new((c[0] as f64).powf(gamma), 0.0),
-                Complex::new((c[1] as f64).powf(gamma), 0.0),
-                Complex::new((c[2] as f64).powf(gamma), 0.0),
-                Complex::new((c[3] as f64).powf(gamma), 0.0),
-            ]
-        })
-        .collect::<Vec<_>>();
-
-    for (n, [r, g, b, a]) in kernels
-        .par_iter()
-        .enumerate()
-        .map(|(n, kernel)| {
-            let temp = horizontal_filter(&input, kernel, w, h);
-            vertical_filter(&temp, kernel, w, h)
-                .iter()
-                .map(|pixel| {
-                    let re = param_set.real_component(n);
-                    let im = param_set.imag_component(n);
-                    [
-                        re * pixel[0].re + im * pixel[0].im,
-                        re * pixel[1].re + im * pixel[1].im,
-                        re * pixel[2].re + im * pixel[2].im,
-                        re * pixel[3].re + im * pixel[3].im,
-                    ]
-                })
-                .collect()
-        })
-        .reduce(
-            || vec![[0.0; 4]; (w * h) as usize],
-            |mut a, b| {
-                for (x, y) in a.iter_mut().zip(b.iter()) {
-                    x[0] += y[0];
-                    x[1] += y[1];
-                    x[2] += y[2];
-                    x[3] += y[3];
-                }
-                a
-            },
-        )
+    for (n, rgba) in ComplexImage::from_slice(img, w, h, gamma)
+        .bokeh_blur(param_set, r, kernel_radius)
         .into_iter()
         .enumerate()
     {
-        // Clamp any values from floating point ops - ensure the cast to u8 is ok
-        let r = r.powf(1.0 / gamma).clamp(0.0, 255.0) as u8;
-        let g = g.powf(1.0 / gamma).clamp(0.0, 255.0) as u8;
-        let b = b.powf(1.0 / gamma).clamp(0.0, 255.0) as u8;
-        let a = a.powf(1.0 / gamma).clamp(0.0, 255.0) as u8;
+        // Clamp any values from floating point ops
+        img[n] = rgba.map(|i| i.powf(1.0 / gamma).clamp(0.0, 255.0));
+    }
+}
 
-        // Safety: definitely in bounds due to iteration ranges
-        unsafe {
-            img.unsafe_put_pixel(
-                n as u32 % w,
-                n as u32 / w,
-                *Pixel::from_slice(&[r, g, b, a]),
-            )
+// TODO optimisation where only convolve regions not masked, have to look at places within kernel
+// radius
+pub fn bokeh_blur_with_mask<'a>(
+    img: &mut [[f64; 4]],
+    mask: impl IntoIterator<Item = &'a bool>,
+    w: usize,
+    h: usize,
+    r: f64,
+    kernel_radius: usize,
+    gamma: f64,
+    param_set: &KernelParamSet,
+) {
+    for ((n, rgba), mask_i) in ComplexImage::from_slice(img, w, h, gamma)
+        .bokeh_blur(param_set, r, kernel_radius)
+        .into_iter()
+        .enumerate()
+        .zip(mask.into_iter())
+    {
+        if *mask_i {
+            // Clamp any values from floating point ops
+            img[n] = rgba.map(|i| i.powf(1.0 / gamma).clamp(0.0, 255.0));
+        }
+    }
+}
+
+pub mod dynamic_image {
+    use super::ComplexImage;
+    use crate::params::KernelParamSet;
+    use image::{DynamicImage, GenericImage, Pixel};
+
+    /// Blurs an image using an approximation of a disc-shaped kernel to produce a Bokeh lens effect
+    pub fn bokeh_blur(
+        img: &mut DynamicImage,
+        r: f64,
+        kernel_radius: usize,
+        gamma: f64,
+        param_set: &KernelParamSet,
+    ) {
+        let w = img.width();
+
+        for (n, rgba) in ComplexImage::from_dynamic_image(img, gamma)
+            .bokeh_blur(param_set, r, kernel_radius)
+            .into_iter()
+            .enumerate()
+        {
+            // Safety: definitely in bounds due to iteration ranges
+            unsafe {
+                img.unsafe_put_pixel(
+                    n as u32 % w,
+                    n as u32 / w,
+                    // Clamp any values from floating point ops - ensure the cast to u8 is ok
+                    *Pixel::from_slice(&rgba.map(|i| i.powf(1.0 / gamma).clamp(0.0, 255.0) as u8)),
+                )
+            }
+        }
+    }
+
+    // TODO optimisation where only convolve regions not masked, have to look at places within kernel
+    // radius
+    pub fn bokeh_blur_with_mask<'a>(
+        img: &mut DynamicImage,
+        mask: impl IntoIterator<Item = &'a bool>,
+        r: f64,
+        kernel_radius: usize,
+        gamma: f64,
+        param_set: &KernelParamSet,
+    ) {
+        let w = img.width();
+
+        for ((n, rgba), mask_i) in ComplexImage::from_dynamic_image(img, gamma)
+            .bokeh_blur(param_set, r, kernel_radius)
+            .into_iter()
+            .enumerate()
+            .zip(mask.into_iter())
+        {
+            if *mask_i {
+                // Safety: definitely in bounds due to iteration ranges
+                unsafe {
+                    img.unsafe_put_pixel(
+                        n as u32 % w,
+                        n as u32 / w,
+                        // Clamp any values from floating point ops - ensure the cast to u8 is ok
+                        *Pixel::from_slice(
+                            &rgba.map(|i| i.powf(1.0 / gamma).clamp(0.0, 255.0) as u8),
+                        ),
+                    )
+                }
+            }
         }
     }
 }
