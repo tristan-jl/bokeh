@@ -1,7 +1,16 @@
 [package]
 name = "bokeh"
 version = "0.1.0"
+authors = ["Tristan Laurens <tristanlaurens@hotmail.com"]
 edition = "2021"
+license = "MIT"
+
+readme = "README.md"
+description = "A Rust implementation of image-blurring, focussing on disc-shaped kernels to produce a bokeh lens-effect."
+repository = "https://github.com/tristan-jl/bokeh"
+
+keywords = ["blur", "bokeh", "convolution"]
+categories = ["computer-vision", "multimedia::images"]
 
 [dependencies]
 image = { version = "0.24", optional = true }
@@ -10,6 +19,7 @@ paste = "1.0"
 rayon = "1.6"
 
 [features]
+default = ["image"]
 image = ["dep:image"]
 
 [profile.dev]

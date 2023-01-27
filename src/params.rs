@@ -1,4 +1,4 @@
-//! Parameters for the bokeh kernels
+//! Parameters for the bokeh kernels.
 //!
 //! These are used to approximate a disc shaped kernel through summing Gaussian
 //! kernels
@@ -156,22 +156,28 @@ const KERNEL9_PARAMS: [f64; 4 * 9] = [
 /// Utility struct for holding and retrieving kernel parameters
 pub struct KernelParamSet<'a> {
     params: &'a [f64],
-    pub scale: f64,
+    pub(crate) scale: f64,
 }
 
 impl KernelParamSet<'_> {
     pub(crate) const fn a(&self, index: usize) -> f64 {
         self.params[4 * index]
     }
+
     pub(crate) const fn b(&self, index: usize) -> f64 {
         self.params[4 * index + 1]
     }
+
+    /// Real component of the `index` kernel
     pub const fn real_component(&self, index: usize) -> f64 {
         self.params[4 * index + 2]
     }
+
+    /// Imaginary component of the `index` kernel
     pub const fn imag_component(&self, index: usize) -> f64 {
         self.params[4 * index + 3]
     }
+
     pub(crate) const fn num_kernels(&self) -> usize {
         self.params.len() / 4
     }

@@ -282,17 +282,19 @@ impl ComplexImage {
 /// Takes an exclusive reference to a slice of size 4 arrays, where each array
 /// element corresponds to a pixel. Each element of the array corresponds to R,
 /// G, B, A. Also requires the `width` and `height` of the image. The image is
-/// blurred by a disc-shaped kernel with
+/// blurred by a disc-shaped kernel with radius `radius`, built from
+/// components corresponding to `param_set`. The exposure can be modified using
+/// `gamma`, set to `1.0` for no change.
 pub fn bokeh_blur(
     img: &mut [[f64; 4]],
     width: usize,
     height: usize,
-    r: f64,
-    gamma: f64,
+    radius: f64,
     param_set: &KernelParamSet,
+    gamma: f64,
 ) {
     for (n, rgba) in ComplexImage::from_slice(img, width, height, gamma)
-        .bokeh_blur(param_set, r)
+        .bokeh_blur(param_set, radius)
         .into_iter()
         .enumerate()
     {
@@ -301,21 +303,30 @@ pub fn bokeh_blur(
     }
 }
 
-/// Blurs an image using an approximation of a disc-shaped kernel to produce a
-/// Bokeh lens effect
+/// Blurs the selected parts of an image using an approximation of a disc-shaped
+/// kernel to produce a Bokeh lens effect.
+///
+/// Takes an exclusive reference to a slice of size 4 arrays, where each array
+/// element corresponds to a pixel. Each element of the array corresponds to R,
+/// G, B, A. Also takes a `mask` of the same length as the image where `true`'s
+/// correspond to the convolved image and `false`'s corresponsed to the
+/// original.  Also requires the `width` and `height` of the image. The image is
+/// blurred by a disc-shaped kernel with radius `radius`, built from components
+/// corresponding to `param_set`. The exposure can be modified using `gamma`,
+/// set to `1.0` for no change.
 pub fn bokeh_blur_with_mask<'a>(
     img: &mut [[f64; 4]],
     mask: impl IntoIterator<Item = &'a bool>,
     width: usize,
     height: usize,
-    r: f64,
-    gamma: f64,
+    radius: f64,
     param_set: &KernelParamSet,
+    gamma: f64,
 ) {
     // TODO optimisation where only convolve regions not masked, have to look at
     // places within kernel radius
     for ((n, rgba), mask_i) in ComplexImage::from_slice(img, width, height, gamma)
-        .bokeh_blur(param_set, r)
+        .bokeh_blur(param_set, radius)
         .into_iter()
         .enumerate()
         .zip(mask.into_iter())
@@ -327,6 +338,8 @@ pub fn bokeh_blur_with_mask<'a>(
     }
 }
 
+/// Equivalent blurring functions but operate on a
+/// [`image::DynamicImage`](image). See also the [`crate::Blur`] trait.
 #[cfg(feature = "image")]
 pub mod dynamic_image {
     use super::ComplexImage;
@@ -334,12 +347,17 @@ pub mod dynamic_image {
     use image::{DynamicImage, GenericImage, Pixel};
 
     /// Blurs an image using an approximation of a disc-shaped kernel to produce
-    /// a Bokeh lens effect
-    pub fn bokeh_blur(img: &mut DynamicImage, sigma: f64, gamma: f64, param_set: &KernelParamSet) {
+    /// a Bokeh lens effect.
+    ///
+    /// Takes an exclusive reference to a [`image::DynamicImage`](image). The
+    /// image is blurred by a disc-shaped kernel with radius `radius`, built
+    /// from components corresponding to `param_set`. The exposure can be
+    /// modified using `gamma`, set to `1.0` for no change.
+    pub fn bokeh_blur(img: &mut DynamicImage, radius: f64, param_set: &KernelParamSet, gamma: f64) {
         let w = img.width();
 
         for (n, rgba) in ComplexImage::from_dynamic_image(img, gamma)
-            .bokeh_blur(param_set, sigma)
+            .bokeh_blur(param_set, radius)
             .into_iter()
             .enumerate()
         {
@@ -355,19 +373,28 @@ pub mod dynamic_image {
         }
     }
 
-    // TODO optimisation where only convolve regions not masked, have to look at
-    // places within kernel radius
+    /// Blurs the selected parts of an image using an approximation of a
+    /// disc-shaped kernel to produce a Bokeh lens effect.
+    ///
+    /// Takes an exclusive reference to a [`image::DynamicImage`](image). Also
+    /// takes a `mask` of the same length as the image where `true`'s correspond
+    /// to the convolved image and `false`'s corresponsed to the original. The
+    /// image is blurred by a disc-shaped kernel with radius `radius`, built
+    /// from components corresponding to `param_set`. The exposure can be
+    /// modified using `gamma`, set to `1.0` for no change.
     pub fn bokeh_blur_with_mask<'a>(
         img: &mut DynamicImage,
         mask: impl IntoIterator<Item = &'a bool>,
-        sigma: f64,
-        gamma: f64,
+        radius: f64,
         param_set: &KernelParamSet,
+        gamma: f64,
     ) {
+        // TODO optimisation where only convolve regions not masked, have to look at
+        // places within kernel radius
         let w = img.width();
 
         for ((n, rgba), mask_i) in ComplexImage::from_dynamic_image(img, gamma)
-            .bokeh_blur(param_set, sigma)
+            .bokeh_blur(param_set, radius)
             .into_iter()
             .enumerate()
             .zip(mask.into_iter())
