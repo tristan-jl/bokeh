@@ -23,8 +23,8 @@ fn complex_gaussian_kernel(r: f64, kernel_radius: usize, a: f64, b: f64) -> Vec<
     kernel
 }
 
-/// Build all the gaussian kernels and normalise w.r.t. params, ie so that after all the kernels
-/// are applied the pixel remains the same brightnes
+/// Build all the gaussian kernels and normalise w.r.t. params, ie so that after
+/// all the kernels are applied the pixel remains the same brightnes
 fn complex_gaussian_kernels(
     params: &KernelParamSet,
     r: f64,
@@ -190,7 +190,7 @@ fn vertical_filter(
     output
 }
 
-pub struct ComplexImage {
+struct ComplexImage {
     pixels: Vec<ComplexPixel>,
     w: usize,
     h: usize,
@@ -278,17 +278,23 @@ impl ComplexImage {
     }
 }
 
-/// Blurs an image using an approximation of a disc-shaped kernel to produce a Bokeh lens effect
+/// Blurs an image using an approximation of a disc-shaped kernel to produce a
+/// Bokeh lens effect.
+///
+/// Takes an exclusive reference to a slice of size 4 arrays, where each array
+/// element corresponds to a pixel. Each element of the array corresponds to R,
+/// G, B, A. Also requires the `width` and `height` of the image. The image is
+/// blurred by a disc-shaped kernel with
 pub fn bokeh_blur(
     img: &mut [[f64; 4]],
-    w: usize,
-    h: usize,
+    width: usize,
+    height: usize,
     r: f64,
     kernel_radius: usize,
     gamma: f64,
     param_set: &KernelParamSet,
 ) {
-    for (n, rgba) in ComplexImage::from_slice(img, w, h, gamma)
+    for (n, rgba) in ComplexImage::from_slice(img, width, height, gamma)
         .bokeh_blur(param_set, r, kernel_radius)
         .into_iter()
         .enumerate()
@@ -298,20 +304,22 @@ pub fn bokeh_blur(
     }
 }
 
-// TODO optimisation where only convolve regions not masked, have to look at places within kernel
-// radius
 #[allow(clippy::too_many_arguments)]
+/// Blurs an image using an approximation of a disc-shaped kernel to produce a
+/// Bokeh lens effect
 pub fn bokeh_blur_with_mask<'a>(
     img: &mut [[f64; 4]],
     mask: impl IntoIterator<Item = &'a bool>,
-    w: usize,
-    h: usize,
+    width: usize,
+    height: usize,
     r: f64,
     kernel_radius: usize,
     gamma: f64,
     param_set: &KernelParamSet,
 ) {
-    for ((n, rgba), mask_i) in ComplexImage::from_slice(img, w, h, gamma)
+    // TODO optimisation where only convolve regions not masked, have to look at
+    // places within kernel radius
+    for ((n, rgba), mask_i) in ComplexImage::from_slice(img, width, height, gamma)
         .bokeh_blur(param_set, r, kernel_radius)
         .into_iter()
         .enumerate()
@@ -330,10 +338,11 @@ pub mod dynamic_image {
     use crate::params::KernelParamSet;
     use image::{DynamicImage, GenericImage, Pixel};
 
-    /// Blurs an image using an approximation of a disc-shaped kernel to produce a Bokeh lens effect
+    /// Blurs an image using an approximation of a disc-shaped kernel to produce
+    /// a Bokeh lens effect
     pub fn bokeh_blur(
         img: &mut DynamicImage,
-        r: f64,
+        sigma: f64,
         kernel_radius: usize,
         gamma: f64,
         param_set: &KernelParamSet,
@@ -341,7 +350,7 @@ pub mod dynamic_image {
         let w = img.width();
 
         for (n, rgba) in ComplexImage::from_dynamic_image(img, gamma)
-            .bokeh_blur(param_set, r, kernel_radius)
+            .bokeh_blur(param_set, sigma, kernel_radius)
             .into_iter()
             .enumerate()
         {
@@ -357,12 +366,12 @@ pub mod dynamic_image {
         }
     }
 
-    // TODO optimisation where only convolve regions not masked, have to look at places within kernel
-    // radius
+    // TODO optimisation where only convolve regions not masked, have to look at
+    // places within kernel radius
     pub fn bokeh_blur_with_mask<'a>(
         img: &mut DynamicImage,
         mask: impl IntoIterator<Item = &'a bool>,
-        r: f64,
+        sigma: f64,
         kernel_radius: usize,
         gamma: f64,
         param_set: &KernelParamSet,
@@ -370,7 +379,7 @@ pub mod dynamic_image {
         let w = img.width();
 
         for ((n, rgba), mask_i) in ComplexImage::from_dynamic_image(img, gamma)
-            .bokeh_blur(param_set, r, kernel_radius)
+            .bokeh_blur(param_set, sigma, kernel_radius)
             .into_iter()
             .enumerate()
             .zip(mask.into_iter())
