@@ -166,10 +166,10 @@ impl KernelParamSet<'_> {
     pub(crate) const fn b(&self, index: usize) -> f64 {
         self.params[4 * index + 1]
     }
-    pub(crate) const fn real_component(&self, index: usize) -> f64 {
+    pub const fn real_component(&self, index: usize) -> f64 {
         self.params[4 * index + 2]
     }
-    pub(crate) const fn imag_component(&self, index: usize) -> f64 {
+    pub const fn imag_component(&self, index: usize) -> f64 {
         self.params[4 * index + 3]
     }
     pub(crate) const fn num_kernels(&self) -> usize {

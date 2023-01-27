@@ -134,7 +134,7 @@
 //! can be seen that the original pixel values are retained.
 // #![deny(missing_docs)]
 
-pub mod complex;
+mod complex;
 pub mod params;
 
 use self::params::KernelParamSet;
@@ -146,6 +146,7 @@ pub use self::complex::bokeh_blur;
 pub use self::complex::bokeh_blur_with_mask;
 #[cfg(feature = "image")]
 pub use self::complex::dynamic_image;
+pub use self::complex::kernel_gaussian_components;
 
 /// A trait that allows the blurring of images
 pub trait Blur {

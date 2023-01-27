@@ -9,14 +9,14 @@ type ComplexPixel = [Complex<f64>; 4];
 
 /// _UNNORMALISED_ complex gaussian kernel
 ///
-/// Note: will likely break for overflowingly large kernel radii due to cast
-/// from f64
+/// Note: theoretically could break for overflowingly large kernel radii due to
+/// cast from f64 - but that would be ridiculously large
 fn complex_gaussian_kernel(radius: f64, scale: f64, a: f64, b: f64) -> Vec<Complex<f64>> {
     let kernel_radius = radius.ceil() as usize;
     let mut kernel: Vec<Complex<f64>> = vec![Complex::new(0.0, 0.0); 1 + 2 * (kernel_radius)];
 
     for i in -(kernel_radius as isize)..=(kernel_radius as isize) {
-        let ax = i as f64 * scale / radius as f64;
+        let ax = i as f64 * scale / radius;
         let ax2 = ax * ax;
         let exp_a = (-a * ax2).exp();
         let val = Complex::new(exp_a * (b * ax2).cos(), exp_a * (b * ax2).sin());
@@ -27,8 +27,11 @@ fn complex_gaussian_kernel(radius: f64, scale: f64, a: f64, b: f64) -> Vec<Compl
 }
 
 /// Build all the gaussian kernels and normalise w.r.t. params, ie so that after
-/// all the kernels are applied the pixel remains the same brightnes
-fn complex_gaussian_kernels(params: &KernelParamSet, radius: f64) -> Vec<Vec<Complex<f64>>> {
+/// all the kernels are applied the pixel remains the same brightnes.
+///
+/// Takes `params` corresponding to the number of components to use and a kernel
+/// `radius`.
+pub fn kernel_gaussian_components(params: &KernelParamSet, radius: f64) -> Vec<Vec<Complex<f64>>> {
     let mut kernels = (0..params.num_kernels())
         .map(|i| complex_gaussian_kernel(radius, params.scale, params.a(i), params.b(i)))
         .collect::<Vec<_>>();
@@ -95,7 +98,7 @@ fn horizontal_filter(
     w: usize,
     h: usize,
 ) -> Vec<ComplexPixel> {
-    debug_assert!(input.len() == (w * h) as usize);
+    debug_assert!(input.len() == w * h);
     let mut output = vec![[Complex::new(0.0, 0.0); 4]; w * h];
 
     let half_width = kernel.len() / 2;
@@ -148,7 +151,7 @@ fn vertical_filter(
     w: usize,
     h: usize,
 ) -> Vec<ComplexPixel> {
-    debug_assert!(input.len() == (w * h) as usize);
+    debug_assert!(input.len() == w * h);
     let mut output = vec![[Complex::new(0.0, 0.0); 4]; w * h];
 
     let half_width = kernel.len() / 2;
@@ -223,27 +226,23 @@ impl ComplexImage {
 
     /// From an image stored as a vector with 4 channels
     pub fn from_slice(img: &[[f64; 4]], w: usize, h: usize, gamma: f64) -> Self {
-        let input = img
+        let pixels = img
             .iter()
             .map(|c| {
                 [
-                    Complex::new((c[0] as f64).powf(gamma), 0.0),
-                    Complex::new((c[1] as f64).powf(gamma), 0.0),
-                    Complex::new((c[2] as f64).powf(gamma), 0.0),
-                    Complex::new((c[3] as f64).powf(gamma), 0.0),
+                    Complex::new(c[0].powf(gamma), 0.0),
+                    Complex::new(c[1].powf(gamma), 0.0),
+                    Complex::new(c[2].powf(gamma), 0.0),
+                    Complex::new(c[3].powf(gamma), 0.0),
                 ]
             })
             .collect::<Vec<_>>();
 
-        Self {
-            pixels: input,
-            w: w as usize,
-            h: h as usize,
-        }
+        Self { pixels, w, h }
     }
 
     fn bokeh_blur(self, param_set: &KernelParamSet, radius: f64) -> Vec<[f64; 4]> {
-        complex_gaussian_kernels(param_set, radius)
+        kernel_gaussian_components(param_set, radius)
             .par_iter()
             .enumerate()
             .map(|(n, kernel)| {
