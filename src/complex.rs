@@ -8,12 +8,15 @@ use image::{DynamicImage, GenericImageView, Pixel};
 type ComplexPixel = [Complex<f64>; 4];
 
 /// _UNNORMALISED_ complex gaussian kernel
-fn complex_gaussian_kernel(r: f64, kernel_radius: usize, a: f64, b: f64) -> Vec<Complex<f64>> {
-    let kernel_size = 1 + kernel_radius * 2;
-    let mut kernel: Vec<Complex<f64>> = vec![Complex::new(0.0, 0.0); kernel_size];
+///
+/// Note: will likely break for overflowingly large kernel radii due to cast
+/// from f64
+fn complex_gaussian_kernel(radius: f64, scale: f64, a: f64, b: f64) -> Vec<Complex<f64>> {
+    let kernel_radius = radius.ceil() as usize;
+    let mut kernel: Vec<Complex<f64>> = vec![Complex::new(0.0, 0.0); 1 + 2 * (kernel_radius)];
 
     for i in -(kernel_radius as isize)..=(kernel_radius as isize) {
-        let ax = i as f64 * r / kernel_radius as f64;
+        let ax = i as f64 * scale / radius as f64;
         let ax2 = ax * ax;
         let exp_a = (-a * ax2).exp();
         let val = Complex::new(exp_a * (b * ax2).cos(), exp_a * (b * ax2).sin());
@@ -25,13 +28,9 @@ fn complex_gaussian_kernel(r: f64, kernel_radius: usize, a: f64, b: f64) -> Vec<
 
 /// Build all the gaussian kernels and normalise w.r.t. params, ie so that after
 /// all the kernels are applied the pixel remains the same brightnes
-fn complex_gaussian_kernels(
-    params: &KernelParamSet,
-    r: f64,
-    kernel_radius: usize,
-) -> Vec<Vec<Complex<f64>>> {
+fn complex_gaussian_kernels(params: &KernelParamSet, radius: f64) -> Vec<Vec<Complex<f64>>> {
     let mut kernels = (0..params.num_kernels())
-        .map(|i| complex_gaussian_kernel(r, kernel_radius, params.a(i), params.b(i)))
+        .map(|i| complex_gaussian_kernel(radius, params.scale, params.a(i), params.b(i)))
         .collect::<Vec<_>>();
 
     let sum = kernels
@@ -243,8 +242,8 @@ impl ComplexImage {
         }
     }
 
-    fn bokeh_blur(self, param_set: &KernelParamSet, r: f64, kernel_radius: usize) -> Vec<[f64; 4]> {
-        complex_gaussian_kernels(param_set, r, kernel_radius)
+    fn bokeh_blur(self, param_set: &KernelParamSet, radius: f64) -> Vec<[f64; 4]> {
+        complex_gaussian_kernels(param_set, radius)
             .par_iter()
             .enumerate()
             .map(|(n, kernel)| {
@@ -290,12 +289,11 @@ pub fn bokeh_blur(
     width: usize,
     height: usize,
     r: f64,
-    kernel_radius: usize,
     gamma: f64,
     param_set: &KernelParamSet,
 ) {
     for (n, rgba) in ComplexImage::from_slice(img, width, height, gamma)
-        .bokeh_blur(param_set, r, kernel_radius)
+        .bokeh_blur(param_set, r)
         .into_iter()
         .enumerate()
     {
@@ -304,7 +302,6 @@ pub fn bokeh_blur(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 /// Blurs an image using an approximation of a disc-shaped kernel to produce a
 /// Bokeh lens effect
 pub fn bokeh_blur_with_mask<'a>(
@@ -313,14 +310,13 @@ pub fn bokeh_blur_with_mask<'a>(
     width: usize,
     height: usize,
     r: f64,
-    kernel_radius: usize,
     gamma: f64,
     param_set: &KernelParamSet,
 ) {
     // TODO optimisation where only convolve regions not masked, have to look at
     // places within kernel radius
     for ((n, rgba), mask_i) in ComplexImage::from_slice(img, width, height, gamma)
-        .bokeh_blur(param_set, r, kernel_radius)
+        .bokeh_blur(param_set, r)
         .into_iter()
         .enumerate()
         .zip(mask.into_iter())
@@ -340,17 +336,11 @@ pub mod dynamic_image {
 
     /// Blurs an image using an approximation of a disc-shaped kernel to produce
     /// a Bokeh lens effect
-    pub fn bokeh_blur(
-        img: &mut DynamicImage,
-        sigma: f64,
-        kernel_radius: usize,
-        gamma: f64,
-        param_set: &KernelParamSet,
-    ) {
+    pub fn bokeh_blur(img: &mut DynamicImage, sigma: f64, gamma: f64, param_set: &KernelParamSet) {
         let w = img.width();
 
         for (n, rgba) in ComplexImage::from_dynamic_image(img, gamma)
-            .bokeh_blur(param_set, sigma, kernel_radius)
+            .bokeh_blur(param_set, sigma)
             .into_iter()
             .enumerate()
         {
@@ -372,14 +362,13 @@ pub mod dynamic_image {
         img: &mut DynamicImage,
         mask: impl IntoIterator<Item = &'a bool>,
         sigma: f64,
-        kernel_radius: usize,
         gamma: f64,
         param_set: &KernelParamSet,
     ) {
         let w = img.width();
 
         for ((n, rgba), mask_i) in ComplexImage::from_dynamic_image(img, gamma)
-            .bokeh_blur(param_set, sigma, kernel_radius)
+            .bokeh_blur(param_set, sigma)
             .into_iter()
             .enumerate()
             .zip(mask.into_iter())
