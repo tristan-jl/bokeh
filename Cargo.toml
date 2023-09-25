@@ -16,7 +16,7 @@ categories = ["computer-vision", "multimedia::images"]
 image = { version = "0.24", optional = true }
 num = "0.4"
 paste = "1.0"
-rayon = "1.6"
+rayon = "1.8"
 
 [features]
 default = ["image"]
