@@ -30,7 +30,7 @@
 //!
 //! # Examples
 //!
-//! Using the [`image`](image) library (requires the default `image` feature):
+//! Using the [`image`] library (requires the default `image` feature):
 //! ```no_run
 //! use bokeh::{params::KERNEL9_PARAM_SET, Blur};
 //! use image::{io::Reader as ImageReader, ImageError};
@@ -232,6 +232,7 @@ impl Blur for Image<'_> {
     }
 }
 
+#[allow(clippy::unreadable_literal)]
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -103,7 +103,7 @@ fn horizontal_filter(
     w: usize,
     h: usize,
 ) -> Vec<ComplexPixel> {
-    debug_assert!(input.len() == w * h);
+    debug_assert_eq!(input.len(), w * h);
     let mut output = vec![[Complex::new(0.0, 0.0); 4]; w * h];
 
     let half_width = kernel.len() / 2;
@@ -156,7 +156,7 @@ fn vertical_filter(
     w: usize,
     h: usize,
 ) -> Vec<ComplexPixel> {
-    debug_assert!(input.len() == w * h);
+    debug_assert_eq!(input.len(), w * h);
     let mut output = vec![[Complex::new(0.0, 0.0); 4]; w * h];
 
     let half_width = kernel.len() / 2;
@@ -334,7 +334,7 @@ pub fn bokeh_blur_with_mask<'a>(
         .bokeh_blur(param_set, radius)
         .into_iter()
         .enumerate()
-        .zip(mask.into_iter())
+        .zip(mask)
     {
         if *mask_i {
             // Clamp any values from floating point ops
@@ -402,7 +402,7 @@ pub mod dynamic_image {
             .bokeh_blur(param_set, radius)
             .into_iter()
             .enumerate()
-            .zip(mask.into_iter())
+            .zip(mask)
         {
             if *mask_i {
                 // Safety: definitely in bounds due to iteration ranges
