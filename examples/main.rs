@@ -1,5 +1,5 @@
-use bokeh::{params::*, Blur};
-use image::{io::Reader as ImageReader, GenericImageView};
+use bokeh::{Blur, params::KERNEL9_PARAM_SET};
+use image::{GenericImageView, ImageReader};
 
 fn main() {
     let input_path = "inputs/M35.jpg";

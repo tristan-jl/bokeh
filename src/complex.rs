@@ -1,3 +1,7 @@
+#![allow(clippy::cast_possible_truncation)]
+#![allow(clippy::cast_possible_wrap)]
+#![allow(clippy::cast_precision_loss)]
+#![allow(clippy::cast_sign_loss)]
 use crate::params::KernelParamSet;
 use num::Complex;
 use rayon::prelude::*;
@@ -31,6 +35,7 @@ fn complex_gaussian_kernel(radius: f64, scale: f64, a: f64, b: f64) -> Vec<Compl
 ///
 /// Takes `params` corresponding to the number of components to use and a kernel
 /// `radius`.
+#[must_use]
 pub fn kernel_gaussian_components(params: &KernelParamSet, radius: f64) -> Vec<Vec<Complex<f64>>> {
     let mut kernels = (0..params.num_kernels())
         .map(|i| complex_gaussian_kernel(radius, params.scale, params.a(i), params.b(i)))
@@ -45,7 +50,7 @@ pub fn kernel_gaussian_components(params: &KernelParamSet, radius: f64) -> Vec<V
                 for i in k {
                     for j in k {
                         s += params.real_component(n) * (i.re * j.re - i.im * j.im)
-                            + params.imag_component(n) * (i.re * j.im + i.im * j.re)
+                            + params.imag_component(n) * (i.re * j.im + i.im * j.re);
                     }
                 }
                 s
@@ -53,7 +58,7 @@ pub fn kernel_gaussian_components(params: &KernelParamSet, radius: f64) -> Vec<V
         })
         .sqrt();
 
-    for kernel in kernels.iter_mut() {
+    for kernel in &mut kernels {
         for elem in kernel.iter_mut() {
             *elem /= sum;
         }
@@ -67,13 +72,13 @@ pub fn kernel_gaussian_components(params: &KernelParamSet, radius: f64) -> Vec<V
                 for i in k {
                     for j in k {
                         s += params.real_component(n) * (i.re * j.re - i.im * j.im)
-                            + params.imag_component(n) * (i.re * j.im + i.im * j.re)
+                            + params.imag_component(n) * (i.re * j.im + i.im * j.re);
                     }
                 }
             }
             s
         } - 1.0
-            < 0.000000001,
+            < 0.000_000_001,
         "Kernel doesn't sum to 1: {}",
         {
             let mut s = 0.0;
@@ -81,7 +86,7 @@ pub fn kernel_gaussian_components(params: &KernelParamSet, radius: f64) -> Vec<V
                 for i in k {
                     for j in k {
                         s += params.real_component(n) * (i.re * j.re - i.im * j.im)
-                            + params.imag_component(n) * (i.re * j.im + i.im * j.re)
+                            + params.imag_component(n) * (i.re * j.im + i.im * j.re);
                     }
                 }
             }
@@ -207,10 +212,10 @@ impl ComplexImage {
                 let c = pixel.channels();
                 debug_assert_eq!(c.len(), 4);
                 [
-                    Complex::new((c[0] as f64).powf(gamma), 0.0),
-                    Complex::new((c[1] as f64).powf(gamma), 0.0),
-                    Complex::new((c[2] as f64).powf(gamma), 0.0),
-                    Complex::new((c[3] as f64).powf(gamma), 0.0),
+                    Complex::new(f64::from(c[0]).powf(gamma), 0.0),
+                    Complex::new(f64::from(c[1]).powf(gamma), 0.0),
+                    Complex::new(f64::from(c[2]).powf(gamma), 0.0),
+                    Complex::new(f64::from(c[3]).powf(gamma), 0.0),
                 ]
             })
             .collect::<Vec<_>>();
@@ -368,7 +373,7 @@ pub mod dynamic_image {
                     n as u32 / w,
                     // Clamp any values from floating point ops - ensure the cast to u8 is ok
                     *Pixel::from_slice(&rgba.map(|i| i.powf(1.0 / gamma).clamp(0.0, 255.0) as u8)),
-                )
+                );
             }
         }
     }
@@ -409,7 +414,7 @@ pub mod dynamic_image {
                         *Pixel::from_slice(
                             &rgba.map(|i| i.powf(1.0 / gamma).clamp(0.0, 255.0) as u8),
                         ),
-                    )
+                    );
                 }
             }
         }

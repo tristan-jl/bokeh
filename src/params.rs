@@ -1,3 +1,4 @@
+#![allow(clippy::unreadable_literal)]
 //! Parameters for the bokeh kernels.
 //!
 //! These are used to approximate a disc shaped kernel through summing Gaussian
@@ -169,11 +170,13 @@ impl KernelParamSet<'_> {
     }
 
     /// Real component of the `index` kernel
+    #[must_use]
     pub const fn real_component(&self, index: usize) -> f64 {
         self.params[4 * index + 2]
     }
 
     /// Imaginary component of the `index` kernel
+    #[must_use]
     pub const fn imag_component(&self, index: usize) -> f64 {
         self.params[4 * index + 3]
     }

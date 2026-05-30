@@ -185,7 +185,7 @@ pub trait Blur {
 #[cfg(feature = "image")]
 impl Blur for DynamicImage {
     fn bokeh_blur(&mut self, radius: f64, param_set: &KernelParamSet, gamma: f64) {
-        dynamic_image::bokeh_blur(self, radius, param_set, gamma)
+        dynamic_image::bokeh_blur(self, radius, param_set, gamma);
     }
 
     fn bokeh_blur_with_mask<'a>(
@@ -195,7 +195,7 @@ impl Blur for DynamicImage {
         param_set: &KernelParamSet,
         gamma: f64,
     ) {
-        dynamic_image::bokeh_blur_with_mask(self, mask, radius, param_set, gamma)
+        dynamic_image::bokeh_blur_with_mask(self, mask, radius, param_set, gamma);
     }
 }
 
@@ -216,9 +216,9 @@ impl<'a> Image<'a> {
     }
 }
 
-impl<'a> Blur for Image<'a> {
+impl Blur for Image<'_> {
     fn bokeh_blur(&mut self, radius: f64, param_set: &KernelParamSet, gamma: f64) {
-        bokeh_blur(self.pixels, self.w, self.h, radius, param_set, gamma)
+        bokeh_blur(self.pixels, self.w, self.h, radius, param_set, gamma);
     }
 
     fn bokeh_blur_with_mask<'b>(
@@ -228,7 +228,7 @@ impl<'a> Blur for Image<'a> {
         param_set: &KernelParamSet,
         gamma: f64,
     ) {
-        bokeh_blur_with_mask(self.pixels, mask, self.w, self.h, radius, param_set, gamma)
+        bokeh_blur_with_mask(self.pixels, mask, self.w, self.h, radius, param_set, gamma);
     }
 }
 
